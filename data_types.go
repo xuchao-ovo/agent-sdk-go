@@ -234,6 +234,7 @@ type HTTPPacket struct {
 	Host    string
 	Payload string
 }
+
 type MetricConfig struct {
 	Name     string `json:"name"`
 	Describe string `json:"describe"`
