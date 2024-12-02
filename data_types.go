@@ -139,10 +139,8 @@ type HeartBeatInfo struct {
 }
 
 type Config struct {
-	Version      string `json:"version"`
-	Architecture string `json:"architecture"`
-	Source       string `json:"source"`
-	Describe     string `json:"describe"`
+	Version      string         `json:"version"`
+	MetricConfig []MetricConfig `json:"metricConfig"`
 }
 
 // CpuInfo CPU采集信息 => PC12
