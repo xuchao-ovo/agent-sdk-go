@@ -238,3 +238,10 @@ type MetricConfig struct {
 	Describe string `json:"describe"`
 	Interval uint   `json:"interval"`
 }
+
+// IOCacheInfo 进程 IO 缓存信息
+type IOCacheInfo struct {
+	IoReadBytes  uint64 `json:"ioReadBytes"`  // 读取字节数;应记录进程读取的字节数。
+	IoWriteBytes uint64 `json:"ioWriteBytes"` // 写入字节数;应记录进程写入的字节数。
+	CollectedAt  uint64 `json:"collectedAt"`  // 采集时间;记录进程采集时间。
+}
