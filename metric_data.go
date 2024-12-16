@@ -237,6 +237,7 @@ type MetricConfig struct {
 	Name     string `json:"name"`
 	Describe string `json:"describe"`
 	Interval uint   `json:"interval"`
+	Enabled  bool   `json:"enabled"`
 }
 
 // IOCacheInfo 进程 IO 缓存信息
