@@ -132,16 +132,16 @@ type LoginInfo struct {
 
 // HeartBeatInfo 心跳采集信息 => PC11
 type HeartBeatInfo struct {
-	HostName string `json:"hostName"` // 主机名称
-	Platform string `json:"platform"` // 平台
-	Type     uint   `json:"type"`     // 类型
-	Config   Config `json:"config"`   // 配置信息
+	HostName         string `json:"hostName"`         // 主机名称
+	Platform         string `json:"platform"`         // 平台
+	Type             uint   `json:"type"`             // 类型
+	Config           Config `json:"config"`           // 配置信息
+	CollectionStatus bool   `json:"collectionStatus"` // 采集状态
 }
 
 type Config struct {
-	Version          string         `json:"version"`
-	MetricConfig     []MetricConfig `json:"metricConfig"`
-	CollectionStatus bool           `json:"collectionStatus"`
+	Version      string         `json:"version"`
+	MetricConfig []MetricConfig `json:"metricConfig"`
 }
 
 // CpuInfo CPU采集信息 => PC12
