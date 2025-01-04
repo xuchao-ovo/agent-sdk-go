@@ -238,6 +238,7 @@ type MetricConfig struct {
 	Name     string `json:"name"`
 	Describe string `json:"describe"`
 	Interval uint   `json:"interval"`
+	Level    uint   `json:"level"`
 	Enabled  bool   `json:"enabled"`
 }
 
