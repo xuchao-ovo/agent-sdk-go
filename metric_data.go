@@ -175,14 +175,16 @@ type MemInfo struct {
 
 // NetSendInfo 网卡发包速率采集信息 => PC15
 type NetSendInfo struct {
-	Name       string `json:"name"` // 网卡名称
-	PacketRate uint64 `json:"packet_rate"`
+	Name          string `json:"name"`          // 网卡名称
+	PacketsSent   uint64 `json:"packetsSent"`   // 发包数量
+	BytesSentRate uint64 `json:"bytesSentRate"` // 发包速率
 }
 
 // NetRecvInfo 网卡收包速率采集信息 => PC16
 type NetRecvInfo struct {
-	Name       string `json:"name"` // 网卡名称
-	PacketRate uint64 `json:"packet_rate"`
+	Name          string `json:"name"`          // 网卡名称
+	PacketsRecv   uint64 `json:"packetsRecv"`   // 收包数量
+	BytesRecvRate uint64 `json:"bytesRecvRate"` // 收包速率
 }
 
 // SoftwareData 已安装应用采集信息 => PC18
@@ -204,6 +206,30 @@ type FirewallStatus struct {
 type HttpPacketData struct {
 	Request  HTTPPacket `json:"request"`
 	Response HTTPPacket `json:"response"`
+}
+
+// SSHInfo SSH连接信息采集 => PC21
+type SSHInfo struct {
+	User      string `json:"user"`       // 用户名
+	TTY       string `json:"tty"`        // 终端
+	LoginTime string `json:"login_time"` // 登录时间
+	ClientIP  string `json:"client_ip"`  // 客户端IP地址
+}
+
+// RDPLog RDP连接信息采集 => PC22
+type RDPLog struct {
+	Server string `json:"server"` // 服务器地址
+	User   string `json:"user"`   // 用户名
+}
+
+// EventLogInfo 事件日志采集 => PC23
+type EventLogInfo struct {
+	TimeGenerated string `json:"timeGenerated"` // 事件生成时间
+	EventID       int    `json:"eventId"`       // 事件ID
+	EventType     string `json:"eventType"`     // 事件类型
+	Source        string `json:"source"`        // 事件来源
+	Message       string `json:"message"`       // 事件消息
+	LogName       string `json:"logName"`       // 日志名称
 }
 
 // RequestData 用于存储HTTP请求头信息

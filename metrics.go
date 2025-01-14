@@ -38,6 +38,10 @@ func GetSummary(agentData MetricsHostInfo) (string, error) {
 		if err = json.Unmarshal(metricsDataJson, &netInfo); err != nil {
 			return "", err
 		}
+		if len(netInfo) == 0 {
+			agentData.Summary = "未查询到网卡信息"
+			return agentData.Summary, nil
+		}
 		var IPv4, Mac []string
 		for _, net := range netInfo {
 			if net.IPv4 != "" && net.IPv4 != "127.0.0.1" {
@@ -47,11 +51,15 @@ func GetSummary(agentData MetricsHostInfo) (string, error) {
 				Mac = append(Mac, net.MAC)
 			}
 		}
-		agentData.Summary = fmt.Sprintf("共%d个网络接口，IP分别为%v", len(netInfo), IPv4)
+		agentData.Summary = fmt.Sprintf("共%d个网卡，IP分别为%v", len(netInfo), IPv4)
 	case "PC3":
 		var processInfo []ProcessInfo
 		if err = json.Unmarshal(metricsDataJson, &processInfo); err != nil {
 			return "", err
+		}
+		if len(processInfo) == 0 {
+			agentData.Summary = "未查询到进程信息"
+			return agentData.Summary, nil
 		}
 		var totalCpuUseRate, totalMemoryUseRate float64
 		for _, proc := range processInfo {
@@ -63,6 +71,10 @@ func GetSummary(agentData MetricsHostInfo) (string, error) {
 		var portInfo []PortInfo
 		if err = json.Unmarshal(metricsDataJson, &portInfo); err != nil {
 			return "", err
+		}
+		if len(portInfo) == 0 {
+			agentData.Summary = "未开放端口"
+			return agentData.Summary, nil
 		}
 		var portList []string
 		for i, port := range portInfo {
@@ -79,6 +91,10 @@ func GetSummary(agentData MetricsHostInfo) (string, error) {
 			return "", err
 		}
 		ipList := make([]string, 0)
+		if len(arpInfo) == 0 {
+			agentData.Summary = "有过网络连接的IP：无"
+			return agentData.Summary, nil
+		}
 		for i, v := range arpInfo {
 			if i < 3 { // 只显示前三个ip
 				ipList = append(ipList, v.CacheIp)
@@ -91,6 +107,10 @@ func GetSummary(agentData MetricsHostInfo) (string, error) {
 		var userInfo []UserInfo
 		if err = json.Unmarshal(metricsDataJson, &userInfo); err != nil {
 			return "", err
+		}
+		if len(userInfo) == 0 {
+			agentData.Summary = "未查询到用户信息"
+			return agentData.Summary, nil
 		}
 		var userList []string
 		for i, user := range userInfo {
@@ -125,7 +145,19 @@ func GetSummary(agentData MetricsHostInfo) (string, error) {
 		if err = json.Unmarshal(metricsDataJson, &cronTaskData); err != nil {
 			return "", err
 		}
-		agentData.Summary = fmt.Sprintf("%d个定时任务", len(cronTaskData))
+		if len(cronTaskData) == 0 {
+			agentData.Summary = "未查询到定时任务"
+			return agentData.Summary, nil
+		}
+		var taskList []string
+		for i, task := range cronTaskData {
+			if i < 3 && task.TaskName != "" {
+				taskList = append(taskList, task.TaskName)
+			} else {
+				break
+			}
+		}
+		agentData.Summary = fmt.Sprintf("%d个定时任务，包括：%s等", len(cronTaskData), strings.Join(taskList, "、"))
 	case "PC10":
 		var loginInfo []LoginInfo
 		if err = json.Unmarshal(metricsDataJson, &loginInfo); err != nil {
@@ -168,13 +200,35 @@ func GetSummary(agentData MetricsHostInfo) (string, error) {
 		if err = json.Unmarshal(metricsDataJson, &netSendInfo); err != nil {
 			return "", err
 		}
-		agentData.Summary = fmt.Sprintf("网卡发包速率: %+v", netSendInfo)
+		netSendList := []string{}
+		for _, netSend := range netSendInfo {
+			if netSend.PacketsSent != 0 || netSend.BytesSentRate != 0 {
+				summary := fmt.Sprintf("网卡[ %s ]发包速率: %.2f KB/s, 发包数: %d", netSend.Name, float64(netSend.BytesSentRate), netSend.PacketsSent)
+				netSendList = append(netSendList, summary)
+			}
+		}
+		if len(netSendList) == 0 {
+			agentData.Summary = fmt.Sprintf("网卡发包速率为 0KB/s")
+			return agentData.Summary, nil
+		}
+		agentData.Summary = fmt.Sprintf(strings.Join(netSendList, "、"))
 	case "PC16":
 		var netRecvInfo []NetRecvInfo
 		if err = json.Unmarshal(metricsDataJson, &netRecvInfo); err != nil {
 			return "", err
 		}
-		agentData.Summary = fmt.Sprintf("网卡收包速率: %+v", netRecvInfo)
+		netRecvList := []string{}
+		for _, netRecv := range netRecvInfo {
+			if netRecv.PacketsRecv != 0 || netRecv.BytesRecvRate != 0 {
+				summary := fmt.Sprintf("网卡[ %s ]收包速率: %.2f KB/s, 收包数: %d", netRecv.Name, float64(netRecv.BytesRecvRate), netRecv.PacketsRecv)
+				netRecvList = append(netRecvList, summary)
+			}
+		}
+		if len(netRecvList) == 0 {
+			agentData.Summary = fmt.Sprintf("网卡收包速率为 0KB/s")
+			return agentData.Summary, nil
+		}
+		agentData.Summary = fmt.Sprintf(strings.Join(netRecvList, "、"))
 	case "PC18":
 		var softwareInfo []SoftwareData
 		if err = json.Unmarshal(metricsDataJson, &softwareInfo); err != nil {
@@ -219,6 +273,45 @@ func GetSummary(agentData MetricsHostInfo) (string, error) {
 
 		}
 		agentData.Summary = summary
+	case "PC21":
+		var sshInfo []SSHInfo
+		if err = json.Unmarshal(metricsDataJson, &sshInfo); err != nil {
+			return "", err
+		}
+		ipList := make([]string, 0)
+		for i, v := range sshInfo {
+			if i < 3 { // 只显示前三个ip
+				ipList = append(ipList, v.ClientIP)
+			} else {
+				break
+			}
+		}
+		agentData.Summary = fmt.Sprintf("有过SSH连接的IP：%s等", strings.Join(ipList, "、"))
+	case "PC22":
+		var rdpLog []RDPLog
+		if err = json.Unmarshal(metricsDataJson, &rdpLog); err != nil {
+			return "", err
+		}
+		ipList := make([]string, 0)
+		for i, v := range rdpLog {
+			if i < 3 { // 只显示前三个ip
+				ipList = append(ipList, v.Server)
+			} else {
+				break
+			}
+		}
+		agentData.Summary = fmt.Sprintf("有过RDP连接的IP：%s等", strings.Join(ipList, "、"))
+	case "PC23":
+		var eventLogs []EventLogInfo
+		if err = json.Unmarshal(metricsDataJson, &eventLogs); err != nil {
+			return "", err
+		}
+		if len(eventLogs) == 0 {
+			agentData.Summary = "无日志信息"
+			return agentData.Summary, nil
+		}
+		agentData.Summary = fmt.Sprintf("共采集到 %d 条日志信息，最近一条日志：%s", len(eventLogs), eventLogs[0].Message)
+
 	}
 	return agentData.Summary, nil
 }
