@@ -7,7 +7,8 @@ import (
 )
 
 type MetricsHostInfo struct {
-	KvmID       string      `json:"KvmID"`
+	AgentID     string      `json:"agentId"`     //  探针ID
+	KvmID       string      `json:"kvmId"`       // 虚拟机ID
 	MetricsCode string      `json:"metricsCode"` // 指标编号
 	MetricsName string      `json:"metricsName"` // 指标名
 	MetricsType string      `json:"metricsType"` // 轮询方式
@@ -15,6 +16,19 @@ type MetricsHostInfo struct {
 	MetricsData interface{} `json:"metricsData"` // 指标数据
 	Level       uint        `json:"level"`       // 指标等级
 	Interval    uint        `json:"interval"`    // 采集周期
+}
+
+func (t *MetricsHostInfo) ToMap() map[string]interface{} {
+	return map[string]interface{}{
+		"KvmID":       t.KvmID,
+		"MetricsCode": t.MetricsCode,
+		"MetricsName": t.MetricsName,
+		"MetricsType": t.MetricsType,
+		"Summary":     t.Summary,
+		"MetricsData": t.MetricsData,
+		"Level":       t.Level,
+		"Interval":    t.Interval,
+	}
 }
 
 // GetSummary 获取摘要
