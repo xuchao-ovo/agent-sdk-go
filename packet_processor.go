@@ -12,6 +12,7 @@ import (
 const BufSize = 4096
 
 var taskDataMap = make(map[int][]byte) // 用于缓存每个任务的数据包
+var taskDataMapMutex sync.Mutex
 
 var gvaLog *zap.Logger
 
@@ -85,18 +86,25 @@ func ListenConnection(conn net.Conn, kvmID string, agentMap map[string]interface
 			}
 			// 开始接收数据，添加数据到缓存中
 			if dataStatus == DataStart {
+				taskDataMapMutex.Lock()
 				if _, ok := taskDataMap[taskID]; ok {
 					delete(taskDataMap, taskID)
 				}
 				taskDataMap[taskID] = append(taskDataMap[taskID], packet...)
+				taskDataMapMutex.Unlock()
 			}
 			// 跳过不完整数据包
+			taskDataMapMutex.Lock()
 			if _, ok := taskDataMap[taskID]; !ok && totalLen >= BufSize {
+				taskDataMapMutex.Unlock()
 				continue
 			}
+			taskDataMapMutex.Unlock()
 			// 处理传输中数据，追加数据到缓存中
 			if dataStatus == DataTransfer {
+				taskDataMapMutex.Lock()
 				taskDataMap[taskID] = append(taskDataMap[taskID], packet[6:]...)
+				taskDataMapMutex.Unlock()
 			}
 			// 处理传输结束数据
 			if dataStatus == DataEnd {
@@ -124,6 +132,7 @@ func handleEndPacket(packet []byte, taskID int, totalLen int, kvmID string, agen
 	if actualDataEnd > BufSize {
 		actualDataEnd = BufSize
 	}
+	taskDataMapMutex.Lock()
 	if totalLen <= BufSize {
 		taskDataMap[taskID] = append(taskDataMap[taskID], packet[:totalLen]...)
 	} else {
@@ -134,6 +143,7 @@ func handleEndPacket(packet []byte, taskID int, totalLen int, kvmID string, agen
 	data := taskData[6:]
 	// 清除已处理的数据包
 	delete(taskDataMap, taskID)
+	taskDataMapMutex.Unlock()
 	// 解析完整数据
 	err := processCompleteTaskData(packetType, data, kvmID, agentData)
 	if err != nil {
