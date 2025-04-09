@@ -14,6 +14,17 @@ const BufSize = 4096
 var taskDataMap = make(map[int][]byte) // 用于缓存每个任务的数据包
 var taskDataMapMutex sync.Mutex
 
+type KvmAgentData struct {
+	Vid     string
+	Conn    net.Conn
+	taskMap map[int]TaskData
+}
+
+type TaskData struct {
+	Execute string `json:"execute"`
+	Args    string `json:"args"`
+}
+
 var gvaLog *zap.Logger
 
 // 数据状态
@@ -24,7 +35,7 @@ var (
 )
 
 // ListenConnection 监听单个连接的数据
-func ListenConnection(conn net.Conn, kvmID string, agentMap map[string]interface{}, agentMapMutex sync.Mutex, agentData chan map[string]interface{}, log *zap.Logger) {
+func ListenConnection(conn net.Conn, kvmID string, agentMap map[string]interface{}, agentMapMutex sync.Mutex, kvmAgentMap map[string]*KvmAgentData, kvmAgentMutex sync.Mutex, agentData chan map[string]interface{}, log *zap.Logger) {
 	defer conn.Close()
 	gvaLog = log
 
@@ -38,6 +49,9 @@ func ListenConnection(conn net.Conn, kvmID string, agentMap map[string]interface
 			agentMapMutex.Lock()
 			delete(agentMap, kvmID)
 			agentMapMutex.Unlock()
+			kvmAgentMutex.Lock()
+			delete(kvmAgentMap, kvmID)
+			kvmAgentMutex.Unlock()
 			return
 		}
 		// 过滤无效数据包
