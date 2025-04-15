@@ -1,9 +1,8 @@
 package metrics
 
 import (
-	"encoding/json"
-	"errors"
 	"fmt"
+	"github.com/xuchao-ovo/agent-sdk-go/global"
 	"go.uber.org/zap"
 	"net"
 	"sync"
@@ -34,8 +33,17 @@ var (
 	DataEnd      = 2
 )
 
+type CompleteResponse struct {
+	KvmID      string `json:"kvmID"`
+	PacketType int    `json:"packetType"`
+	Data       []byte `json:"data"`
+}
+
+// ProcessCompleteTaskDataFunc 定义外部传入的 processCompleteTaskData 函数签名
+type ProcessCompleteTaskDataFunc func(packetType int, data []byte, kvmID string, agentData chan map[string]interface{}) error
+
 // ListenConnection 监听单个连接的数据
-func ListenConnection(conn net.Conn, kvmID string, agentMap map[string]interface{}, agentMapMutex sync.Mutex, kvmAgentMap map[string]*KvmAgentData, kvmAgentMutex sync.Mutex, agentData chan map[string]interface{}, log *zap.Logger) {
+func ListenConnection(conn net.Conn, kvmID string, agentMap map[string]interface{}, agentMapMutex sync.Mutex, kvmAgentMap map[string]*KvmAgentData, kvmAgentMutex sync.Mutex, agentData chan map[string]interface{}, log *zap.Logger, processCompleteTaskData ProcessCompleteTaskDataFunc) {
 	defer conn.Close()
 	gvaLog = log
 
@@ -54,10 +62,12 @@ func ListenConnection(conn net.Conn, kvmID string, agentMap map[string]interface
 			kvmAgentMutex.Unlock()
 			return
 		}
+
 		// 过滤无效数据包
-		if int(buf[0]) != 2 {
+		if int(buf[0]) != global.TaskCollect && int(buf[0]) != global.MetricCollect {
 			continue
 		}
+
 		receivedBuf = append(receivedBuf, buf[:n]...)
 		// 兼容旧版本心跳采集数据
 		for len(receivedBuf) >= 3 && len(receivedBuf) < BufSize {
@@ -122,7 +132,7 @@ func ListenConnection(conn net.Conn, kvmID string, agentMap map[string]interface
 			}
 			// 处理传输结束数据
 			if dataStatus == DataEnd {
-				err = handleEndPacket(packet, taskID, totalLen, kvmID, agentData)
+				err = handleEndPacket(packet, taskID, totalLen, kvmID, agentData, processCompleteTaskData)
 				if err != nil {
 					gvaLog.Error("解析数据错误:", zap.Error(err))
 					continue
@@ -141,7 +151,7 @@ func isValidPacket(taskID int, dataStatus int) bool {
 }
 
 // handleEndPacket 处理数据结束包
-func handleEndPacket(packet []byte, taskID int, totalLen int, kvmID string, agentData chan map[string]interface{}) error {
+func handleEndPacket(packet []byte, taskID int, totalLen int, kvmID string, agentData chan map[string]interface{}, processCompleteTaskData ProcessCompleteTaskDataFunc) error {
 	actualDataEnd := totalLen - len(taskDataMap[taskID]) + 6
 	if actualDataEnd > BufSize {
 		actualDataEnd = BufSize
@@ -162,25 +172,6 @@ func handleEndPacket(packet []byte, taskID int, totalLen int, kvmID string, agen
 	err := processCompleteTaskData(packetType, data, kvmID, agentData)
 	if err != nil {
 		return err
-	}
-	return nil
-}
-
-// processCompleteTaskData 解析完整数据
-func processCompleteTaskData(packetType int, data []byte, kvmID string, agentData chan map[string]interface{}) error {
-	switch packetType {
-	case 2:
-		var metricsHostInfo MetricsHostInfo
-		err := json.Unmarshal(data, &metricsHostInfo)
-		if err != nil {
-			return err
-		}
-		metricsHostInfo.KvmID = kvmID
-		agentData <- metricsHostInfo.ToMap()
-		gvaLog.Info(fmt.Sprintf("收到[ %s ]的[ %s ]采集数据", kvmID, metricsHostInfo.MetricsName))
-
-	default:
-		return errors.New("未知数据类型")
 	}
 	return nil
 }

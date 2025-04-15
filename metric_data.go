@@ -1,6 +1,9 @@
 package metrics
 
-import "time"
+import (
+	uuid "github.com/satori/go.uuid"
+	"time"
+)
 
 // SystemData 系统信息采集信息 => PC1
 type SystemData struct {
@@ -140,8 +143,9 @@ type HeartBeatInfo struct {
 }
 
 type Config struct {
-	Version      string         `json:"version"`
-	MetricConfig []MetricConfig `json:"metricConfig"`
+	Version       string         `json:"version"`
+	MetricConfig  []MetricConfig `json:"metricConfig"`
+	SoftwareTools []Software     `json:"softwareTools"`
 }
 
 // CpuInfo CPU采集信息 => PC12
@@ -273,4 +277,23 @@ type IOCacheInfo struct {
 	IoReadBytes  uint64 `json:"ioReadBytes"`  // 读取字节数;应记录进程读取的字节数。
 	IoWriteBytes uint64 `json:"ioWriteBytes"` // 写入字节数;应记录进程写入的字节数。
 	CollectedAt  uint64 `json:"collectedAt"`  // 采集时间;记录进程采集时间。
+}
+
+// Software 软件工具库信息
+type Software struct {
+	ID          uint      `json:"id"` // 主键ID
+	CreatedAt   time.Time // 创建时间
+	UpdatedAt   time.Time // 更新时间
+	UUID        uuid.UUID `json:"uuid"`    //UUID
+	Name        string    `json:"name"`    //名称
+	Type        uint      `json:"type"`    //类型
+	Path        string    `json:"path"`    //具体路径
+	Size        string    `json:"size"`    //大小
+	Comment     string    `json:"comment"` //描述
+	Status      bool      `json:"status"`
+	SizeDefault string    `json:"size_default" gorm:"-"` //大小
+	Version     string    `json:"version"`               //版本
+	OS          uint      `json:"os"`                    //适用系统
+	Enabled     bool      `json:"enabled"`               //是否公开
+	DownloadUrl string    `json:"download_url"`          //下载地址
 }
