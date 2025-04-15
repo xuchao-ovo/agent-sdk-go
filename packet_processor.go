@@ -12,18 +12,6 @@ const BufSize = 4096
 
 var taskDataMap = make(map[int][]byte) // 用于缓存每个任务的数据包
 var taskDataMapMutex sync.Mutex
-
-type KvmAgentData struct {
-	Vid     string
-	Conn    net.Conn
-	taskMap map[int]TaskData
-}
-
-type TaskData struct {
-	Execute string `json:"execute"`
-	Args    string `json:"args"`
-}
-
 var gvaLog *zap.Logger
 
 // 数据状态
@@ -33,17 +21,11 @@ var (
 	DataEnd      = 2
 )
 
-type CompleteResponse struct {
-	KvmID      string `json:"kvmID"`
-	PacketType int    `json:"packetType"`
-	Data       []byte `json:"data"`
-}
-
 // ProcessCompleteTaskDataFunc 定义外部传入的 processCompleteTaskData 函数签名
 type ProcessCompleteTaskDataFunc func(packetType int, data []byte, kvmID string, agentData chan map[string]interface{}) error
 
 // ListenConnection 监听单个连接的数据
-func ListenConnection(conn net.Conn, kvmID string, agentMap map[string]interface{}, agentMapMutex sync.Mutex, kvmAgentMap map[string]*KvmAgentData, kvmAgentMutex sync.Mutex, agentData chan map[string]interface{}, log *zap.Logger, processCompleteTaskData ProcessCompleteTaskDataFunc) {
+func ListenConnection(conn net.Conn, kvmID string, agentMap map[string]interface{}, agentMapMutex sync.Mutex, agentData chan map[string]interface{}, log *zap.Logger, processCompleteTaskData ProcessCompleteTaskDataFunc) {
 	defer conn.Close()
 	gvaLog = log
 
@@ -57,9 +39,6 @@ func ListenConnection(conn net.Conn, kvmID string, agentMap map[string]interface
 			agentMapMutex.Lock()
 			delete(agentMap, kvmID)
 			agentMapMutex.Unlock()
-			kvmAgentMutex.Lock()
-			delete(kvmAgentMap, kvmID)
-			kvmAgentMutex.Unlock()
 			return
 		}
 
