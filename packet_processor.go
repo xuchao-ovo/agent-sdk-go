@@ -43,7 +43,7 @@ func ListenConnection(conn net.Conn, kvmID string, agentMap map[string]interface
 		}
 
 		// 过滤无效数据包
-		if int(buf[0]) != global.TaskCollect && int(buf[0]) != global.MetricCollect {
+		if int(buf[0]) != global.TaskCollect && int(buf[0]) != global.MetricCollect && int(buf[0]) != global.TaskCallBackCollect {
 			continue
 		}
 
