@@ -43,7 +43,7 @@ func ListenConnection(conn net.Conn, kvmID string, agentMap map[string]interface
 		}
 
 		// 过滤无效数据包
-		if int(buf[0]) != global.TaskCollect && int(buf[0]) != global.MetricCollect && int(buf[0]) != global.TaskCallBackCollect {
+		if int(buf[0]) != global.TaskCollect && int(buf[0]) != global.MetricCollect {
 			continue
 		}
 
@@ -66,6 +66,94 @@ func ListenConnection(conn net.Conn, kvmID string, agentMap map[string]interface
 			data := receivedBuf[3:totalLen]
 			// 移除已处理的数据
 			receivedBuf = receivedBuf[totalLen:]
+			// 解析完整数据
+			err = processCompleteTaskData(packetType, data, kvmID, agentData)
+			if err != nil {
+				gvaLog.Error("解析数据错误:", zap.Error(err))
+				continue
+			}
+		}
+
+		// 处理接收的数据包
+		for len(receivedBuf) >= BufSize {
+			// 解析数据包头部信息
+			packet := receivedBuf[:BufSize]
+			receivedBuf = receivedBuf[BufSize:]
+			dataLen := int(packet[3])<<16 | int(packet[4])<<8 | int(packet[5])
+			totalLen := 6 + dataLen
+			dataStatus := int(packet[2])
+			taskID := int(packet[1])
+			// 过滤无效数据包
+			if !isValidPacket(taskID, dataStatus) {
+				continue
+			}
+			// 开始接收数据，添加数据到缓存中
+			if dataStatus == DataStart {
+				taskDataMapMutex.Lock()
+				if _, ok := taskDataMap[taskID]; ok {
+					delete(taskDataMap, taskID)
+				}
+				taskDataMap[taskID] = append(taskDataMap[taskID], packet...)
+				taskDataMapMutex.Unlock()
+			}
+			// 跳过不完整数据包
+			taskDataMapMutex.Lock()
+			if _, ok := taskDataMap[taskID]; !ok && totalLen >= BufSize {
+				taskDataMapMutex.Unlock()
+				continue
+			}
+			taskDataMapMutex.Unlock()
+			// 处理传输中数据，追加数据到缓存中
+			if dataStatus == DataTransfer {
+				taskDataMapMutex.Lock()
+				taskDataMap[taskID] = append(taskDataMap[taskID], packet[6:]...)
+				taskDataMapMutex.Unlock()
+			}
+			// 处理传输结束数据
+			if dataStatus == DataEnd {
+				err = handleEndPacket(packet, taskID, totalLen, kvmID, agentData, processCompleteTaskData)
+				if err != nil {
+					gvaLog.Error("解析数据错误:", zap.Error(err))
+					continue
+				}
+			}
+		}
+	}
+}
+
+// ListenTaskConnection 监听任务连接通道数据
+func ListenTaskConnection(conn net.Conn, kvmID string, agentMap map[string]interface{}, agentMapMutex sync.Mutex, agentData chan map[string]interface{}, log *zap.Logger, processCompleteTaskData ProcessCompleteTaskDataFunc) {
+	defer conn.Close()
+	gvaLog = log
+
+	var receivedBuf []byte
+	for {
+		buf := make([]byte, BufSize)
+		n, err := conn.Read(buf)
+		if err != nil {
+			gvaLog.Error("Error reading from socket:", zap.Error(err))
+			gvaLog.Info(fmt.Sprintf("agent[%s] 连接断开", kvmID))
+			agentMapMutex.Lock()
+			delete(agentMap, kvmID)
+			agentMapMutex.Unlock()
+			return
+		}
+
+		// 过滤无效数据包
+		if int(buf[0]) != global.OldAgentBackCollect && int(buf[0]) != global.TaskCallBackCollect {
+			continue
+		}
+
+		receivedBuf = append(receivedBuf, buf[:n]...)
+		// 兼容旧版本任务数据
+		for len(receivedBuf) >= 3 && len(receivedBuf) == BufSize && int(receivedBuf[0]) == global.OldAgentBackCollect {
+			packetLen := int(receivedBuf[1])<<8 | int(receivedBuf[2])
+			totalLen := 3 + packetLen
+
+			packetType := int(receivedBuf[0])
+			data := receivedBuf[3:totalLen]
+			// 移除已处理的数据
+			receivedBuf = receivedBuf[4096:]
 			// 解析完整数据
 			err = processCompleteTaskData(packetType, data, kvmID, agentData)
 			if err != nil {

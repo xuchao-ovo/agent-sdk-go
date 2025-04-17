@@ -9,4 +9,5 @@ const (
 // 业务串口数据类型
 const (
 	TaskCallBackCollect = 0 // 业务回调数据
+	OldAgentBackCollect = 1 // 旧探针业务回调数据
 )
