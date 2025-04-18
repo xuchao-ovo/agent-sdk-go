@@ -12,6 +12,8 @@ const BufSize = 4096
 
 var taskDataMap = make(map[int][]byte) // 用于缓存每个任务的数据包
 var taskDataMapMutex sync.Mutex
+var collectTaskDataMap = make(map[int][]byte) // 用于缓存每个采集任务的数据包
+var collectTaskDataMapMutex sync.Mutex
 var gvaLog *zap.Logger
 
 // 数据状态
@@ -21,11 +23,14 @@ var (
 	DataEnd      = 2
 )
 
-// ProcessCompleteTaskDataFunc 定义外部传入的 processCompleteTaskData 函数签名
-type ProcessCompleteTaskDataFunc func(packetType int, data []byte, kvmID string, agentData chan map[string]interface{}) error
+// ProcessCompleteAgentDataFunc 定义外部传入的 ProcessCompleteAgentDataFunc 函数签名
+type ProcessCompleteAgentDataFunc func(packetType int, data []byte, kvmID string, agentData chan map[string]interface{}) error
 
-// ListenConnection 监听单个连接的数据
-func ListenConnection(conn net.Conn, kvmID string, agentMap map[string]interface{}, agentMapMutex sync.Mutex, agentData chan map[string]interface{}, log *zap.Logger, processCompleteTaskData ProcessCompleteTaskDataFunc) {
+// ProcessCompleteTaskDataFunc 定义外部传入的 processCompleteTaskData 函数签名
+type ProcessCompleteTaskDataFunc func(packetType int, data []byte, kvmID string) error
+
+// ListenConnection 监听数据采集连接通道数据（.fa2）
+func ListenConnection(conn net.Conn, kvmID string, agentMap map[string]interface{}, agentMapMutex sync.Mutex, agentData chan map[string]interface{}, log *zap.Logger, processCompleteTaskData ProcessCompleteAgentDataFunc) {
 	defer conn.Close()
 	gvaLog = log
 
@@ -89,25 +94,25 @@ func ListenConnection(conn net.Conn, kvmID string, agentMap map[string]interface
 			}
 			// 开始接收数据，添加数据到缓存中
 			if dataStatus == DataStart {
-				taskDataMapMutex.Lock()
-				if _, ok := taskDataMap[taskID]; ok {
-					delete(taskDataMap, taskID)
+				collectTaskDataMapMutex.Lock()
+				if _, ok := collectTaskDataMap[taskID]; ok {
+					delete(collectTaskDataMap, taskID)
 				}
-				taskDataMap[taskID] = append(taskDataMap[taskID], packet...)
-				taskDataMapMutex.Unlock()
+				collectTaskDataMap[taskID] = append(collectTaskDataMap[taskID], packet...)
+				collectTaskDataMapMutex.Unlock()
 			}
 			// 跳过不完整数据包
-			taskDataMapMutex.Lock()
-			if _, ok := taskDataMap[taskID]; !ok && totalLen >= BufSize {
-				taskDataMapMutex.Unlock()
+			collectTaskDataMapMutex.Lock()
+			if _, ok := collectTaskDataMap[taskID]; !ok && totalLen >= BufSize {
+				collectTaskDataMapMutex.Unlock()
 				continue
 			}
-			taskDataMapMutex.Unlock()
+			collectTaskDataMapMutex.Unlock()
 			// 处理传输中数据，追加数据到缓存中
 			if dataStatus == DataTransfer {
-				taskDataMapMutex.Lock()
-				taskDataMap[taskID] = append(taskDataMap[taskID], packet[6:]...)
-				taskDataMapMutex.Unlock()
+				collectTaskDataMapMutex.Lock()
+				collectTaskDataMap[taskID] = append(collectTaskDataMap[taskID], packet[6:]...)
+				collectTaskDataMapMutex.Unlock()
 			}
 			// 处理传输结束数据
 			if dataStatus == DataEnd {
@@ -121,8 +126,8 @@ func ListenConnection(conn net.Conn, kvmID string, agentMap map[string]interface
 	}
 }
 
-// ListenTaskConnection 监听任务连接通道数据
-func ListenTaskConnection(conn net.Conn, kvmID string, agentMap map[string]interface{}, agentMapMutex sync.Mutex, agentData chan map[string]interface{}, log *zap.Logger, processCompleteTaskData ProcessCompleteTaskDataFunc) {
+// ListenTaskConnection 监听任务连接通道数据（.fa）
+func ListenTaskConnection(conn net.Conn, kvmID string, log *zap.Logger, processCompleteTaskData ProcessCompleteTaskDataFunc) {
 	defer conn.Close()
 	gvaLog = log
 
@@ -133,9 +138,6 @@ func ListenTaskConnection(conn net.Conn, kvmID string, agentMap map[string]inter
 		if err != nil {
 			gvaLog.Error("Error reading from socket:", zap.Error(err))
 			gvaLog.Info(fmt.Sprintf("agent[%s] 连接断开", kvmID))
-			agentMapMutex.Lock()
-			delete(agentMap, kvmID)
-			agentMapMutex.Unlock()
 			return
 		}
 
@@ -155,7 +157,7 @@ func ListenTaskConnection(conn net.Conn, kvmID string, agentMap map[string]inter
 			// 移除已处理的数据
 			receivedBuf = receivedBuf[4096:]
 			// 解析完整数据
-			err = processCompleteTaskData(packetType, data, kvmID, agentData)
+			err = processCompleteTaskData(packetType, data, kvmID)
 			if err != nil {
 				gvaLog.Error("解析数据错误:", zap.Error(err))
 				continue
@@ -199,7 +201,7 @@ func ListenTaskConnection(conn net.Conn, kvmID string, agentMap map[string]inter
 			}
 			// 处理传输结束数据
 			if dataStatus == DataEnd {
-				err = handleEndPacket(packet, taskID, totalLen, kvmID, agentData, processCompleteTaskData)
+				err = handleEndTaskPacket(packet, taskID, totalLen, kvmID, processCompleteTaskData)
 				if err != nil {
 					gvaLog.Error("解析数据错误:", zap.Error(err))
 					continue
@@ -218,7 +220,7 @@ func isValidPacket(taskID int, dataStatus int) bool {
 }
 
 // handleEndPacket 处理数据结束包
-func handleEndPacket(packet []byte, taskID int, totalLen int, kvmID string, agentData chan map[string]interface{}, processCompleteTaskData ProcessCompleteTaskDataFunc) error {
+func handleEndPacket(packet []byte, taskID int, totalLen int, kvmID string, agentData chan map[string]interface{}, processCompleteTaskData ProcessCompleteAgentDataFunc) error {
 	actualDataEnd := totalLen - len(taskDataMap[taskID]) + 6
 	if actualDataEnd > BufSize {
 		actualDataEnd = BufSize
@@ -237,6 +239,32 @@ func handleEndPacket(packet []byte, taskID int, totalLen int, kvmID string, agen
 	taskDataMapMutex.Unlock()
 	// 解析完整数据
 	err := processCompleteTaskData(packetType, data, kvmID, agentData)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+// handleEndPacket 处理数据结束包
+func handleEndTaskPacket(packet []byte, taskID int, totalLen int, kvmID string, processCompleteTaskData ProcessCompleteTaskDataFunc) error {
+	actualDataEnd := totalLen - len(taskDataMap[taskID]) + 6
+	if actualDataEnd > BufSize {
+		actualDataEnd = BufSize
+	}
+	taskDataMapMutex.Lock()
+	if totalLen <= BufSize {
+		taskDataMap[taskID] = append(taskDataMap[taskID], packet[:totalLen]...)
+	} else {
+		taskDataMap[taskID] = append(taskDataMap[taskID], packet[6:actualDataEnd]...)
+	}
+	taskData := taskDataMap[taskID]
+	packetType := int(taskData[0])
+	data := taskData[6:]
+	// 清除已处理的数据包
+	delete(taskDataMap, taskID)
+	taskDataMapMutex.Unlock()
+	// 解析完整数据
+	err := processCompleteTaskData(packetType, data, kvmID)
 	if err != nil {
 		return err
 	}
