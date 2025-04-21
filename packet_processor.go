@@ -220,25 +220,25 @@ func isValidPacket(taskID int, dataStatus int) bool {
 }
 
 // handleEndPacket 处理数据结束包
-func handleEndPacket(packet []byte, taskID int, totalLen int, kvmID string, agentData chan map[string]interface{}, processCompleteTaskData ProcessCompleteAgentDataFunc) error {
-	actualDataEnd := totalLen - len(taskDataMap[taskID]) + 6
+func handleEndPacket(packet []byte, taskID int, totalLen int, kvmID string, agentData chan map[string]interface{}, processCompleteAgentDataData ProcessCompleteAgentDataFunc) error {
+	actualDataEnd := totalLen - len(collectTaskDataMap[taskID]) + 6
 	if actualDataEnd > BufSize {
 		actualDataEnd = BufSize
 	}
-	taskDataMapMutex.Lock()
+	collectTaskDataMapMutex.Lock()
 	if totalLen <= BufSize {
-		taskDataMap[taskID] = append(taskDataMap[taskID], packet[:totalLen]...)
+		collectTaskDataMap[taskID] = append(collectTaskDataMap[taskID], packet[:totalLen]...)
 	} else {
-		taskDataMap[taskID] = append(taskDataMap[taskID], packet[6:actualDataEnd]...)
+		collectTaskDataMap[taskID] = append(collectTaskDataMap[taskID], packet[6:actualDataEnd]...)
 	}
-	taskData := taskDataMap[taskID]
-	packetType := int(taskData[0])
-	data := taskData[6:]
+	collectTaskData := collectTaskDataMap[taskID]
+	packetType := int(collectTaskData[0])
+	data := collectTaskData[6:]
 	// 清除已处理的数据包
-	delete(taskDataMap, taskID)
-	taskDataMapMutex.Unlock()
+	delete(collectTaskDataMap, taskID)
+	collectTaskDataMapMutex.Unlock()
 	// 解析完整数据
-	err := processCompleteTaskData(packetType, data, kvmID, agentData)
+	err := processCompleteAgentDataData(packetType, data, kvmID, agentData)
 	if err != nil {
 		return err
 	}
