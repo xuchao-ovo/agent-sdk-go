@@ -1,4 +1,4 @@
-package metrics
+package types
 
 import (
 	uuid "github.com/satori/go.uuid"
@@ -296,4 +296,29 @@ type Software struct {
 	OS          uint      `json:"os"`                    //适用系统
 	Enabled     bool      `json:"enabled"`               //是否公开
 	DownloadUrl string    `json:"download_url"`          //下载地址
+}
+
+type MetricsHostInfo struct {
+	AgentID     string      `json:"agentId"`     //  探针ID
+	KvmID       string      `json:"kvmId"`       // 虚拟机ID
+	MetricsCode string      `json:"metricsCode"` // 指标编号
+	MetricsName string      `json:"metricsName"` // 指标名
+	MetricsType string      `json:"metricsType"` // 轮询方式
+	Summary     string      `json:"summary"`     // 摘要
+	MetricsData interface{} `json:"metricsData"` // 指标数据
+	Level       uint        `json:"level"`       // 指标等级
+	Interval    uint        `json:"interval"`    // 采集周期
+}
+
+func (t *MetricsHostInfo) ToMap() map[string]interface{} {
+	return map[string]interface{}{
+		"KvmID":       t.KvmID,
+		"MetricsCode": t.MetricsCode,
+		"MetricsName": t.MetricsName,
+		"MetricsType": t.MetricsType,
+		"Summary":     t.Summary,
+		"MetricsData": t.MetricsData,
+		"Level":       t.Level,
+		"Interval":    t.Interval,
+	}
 }
