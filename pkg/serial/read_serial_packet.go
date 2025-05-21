@@ -11,7 +11,7 @@ import (
 	"sync"
 )
 
-const BufSize = 4096
+const BufSize = 316
 
 // 用于缓存每个业务的数据包
 var taskDataMap = make(map[int][]byte)
