@@ -8,7 +8,6 @@ import (
 	"log"
 	"net"
 	"sync"
-	"time"
 )
 
 var mu sync.Mutex
@@ -91,7 +90,6 @@ func Write(con net.Conn, writeType int, byteData []byte, pool utils.TaskIDPool) 
 			pool.RecycleTaskID(taskID)
 			return errors.New("写入数据失败")
 		}
-		time.Sleep(20 * time.Millisecond)
 
 		seqNum++ // 增加序列号
 	}
